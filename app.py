@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 from datetime import datetime
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Simulación de Bitcoin", layout="wide")
@@ -21,7 +21,6 @@ def load_data():
     today = datetime.today().strftime('%Y-%m-%d')
     btc = yf.download("BTC-USD", start="2021-01-01", end=today, interval="1d", auto_adjust=True)
 
-    # Corregir multi-índice en columnas si existe
     if isinstance(btc.columns, pd.MultiIndex):
         btc.columns = btc.columns.get_level_values(0)
 
@@ -30,10 +29,8 @@ def load_data():
 
 btc_data = load_data()
 
-# Verificar columnas
 st.write("Columnas disponibles en btc_data:", btc_data.columns.tolist())
 
-# Quitar filas donde Change es NaN (primer fila suele ser NaN)
 btc_data = btc_data.dropna(subset=['Change'])
 
 # --- Clasificaciones ---
@@ -121,31 +118,46 @@ prob_over = (final_prices > price_target).mean() * 100
 st.subheader("📈 Simulación de precios")
 st.write(f"🎯 Probabilidad de superar ${price_target:,.0f}: **{prob_over:.2f}%**")
 
-fig, ax = plt.subplots(figsize=(12, 6))
-ax.fill_between(sim_df.index, p10, p90, alpha=0.2, label='P10–P90')
-ax.plot(p50, label="Mediana (P50)", color='blue', linewidth=2)
-ax.plot(p25, '--', color='red', alpha=0.5, label='P25 / P75')
-ax.plot(p75, '--', color='yellow', alpha=0.5)
+# --- Gráfica interactiva con Plotly ---
+fig = go.Figure()
 
-# --- Personalizar ejes ---
-# Eje X: cada 10 días
-xticks = np.arange(0, days_ahead + 1, 10)
-ax.set_xticks(xticks)
+# P10–P90 banda
+fig.add_trace(go.Scatter(
+    x=sim_df.index, y=p10, mode='lines', line=dict(width=0),
+    name='P10', showlegend=False
+))
+fig.add_trace(go.Scatter(
+    x=sim_df.index, y=p90, mode='lines', fill='tonexty',
+    fillcolor='rgba(0, 100, 80, 0.2)', line=dict(width=0),
+    name='P90', showlegend=True
+))
 
-# Eje Y: cada 5000 USD
-min_price = sim_df.min().min()
-max_price = sim_df.max().max()
-yticks = np.arange(int(min_price // 5000) * 5000, int(max_price // 5000 + 2) * 5000, 5000)
-ax.set_yticks(yticks)
+# Líneas de percentiles
+fig.add_trace(go.Scatter(x=sim_df.index, y=p50, mode='lines', name='Mediana (P50)', line=dict(color='blue')))
+fig.add_trace(go.Scatter(x=sim_df.index, y=p25, mode='lines', name='P25', line=dict(dash='dash', color='gray')))
+fig.add_trace(go.Scatter(x=sim_df.index, y=p75, mode='lines', name='P75', line=dict(dash='dash', color='gray')))
 
-# Etiquetas y leyenda
-ax.set_xlabel("Día")
-ax.set_ylabel("Precio (USD)")
-ax.set_title("Simulación de Bitcoin")
-ax.legend()
-ax.grid(True)
-st.pyplot(fig)
+# Línea horizontal precio objetivo
+fig.add_trace(go.Scatter(
+    x=[0, days_ahead], y=[price_target, price_target],
+    mode='lines', name=f'🎯 Precio objetivo (${price_target:,.0f})',
+    line=dict(color='red', dash='dot')
+))
 
+# Configurar layout
+fig.update_layout(
+    title="Simulación de Bitcoin",
+    xaxis=dict(title="Día", tickmode="linear", dtick=15),
+    yaxis=dict(title="Precio (USD)", tickmode="linear", dtick=10000),
+    hovermode="x unified",
+    legend=dict(x=0, y=1),
+    template="plotly_white",
+    height=600,
+    width=1000
+)
+
+# Mostrar la gráfica
+st.plotly_chart(fig, use_container_width=True)
 
 # --- Descargar CSV ---
 st.download_button(
