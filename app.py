@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import yfinance as yf
-from datetime import datetime
+from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 
 # --- CONFIGURACIÓN ---
@@ -10,6 +10,19 @@ st.set_page_config(page_title="Simulación de Bitcoin", layout="wide")
 
 # --- Sidebar ---
 st.sidebar.title("🔧 Configuración")
+
+# Opciones para el periodo de descarga de datos (en días atrás desde hoy)
+period_options = {
+    "Últimos 10 días": 10,
+    "Últimos 30 días": 30,
+    "Últimos 120 días": 120,
+    "Últimos 360 días": 360,
+    "Últimos 730 días (2 años)": 730,
+    "Desde 2021-01-01": None
+}
+
+period_choice = st.sidebar.selectbox("Periodo para descargar datos", list(period_options.keys()))
+
 num_simulations = st.sidebar.slider("Número de simulaciones", 10, 500, 100, step=10)
 days_ahead = st.sidebar.slider("Días a futuro", 30, 730, 365, step=30)
 price_target = st.sidebar.number_input("🎯 Precio objetivo (USD)", value=100000)
@@ -17,23 +30,24 @@ method = st.sidebar.selectbox("Método de clasificación", ["Desviación estánd
 
 # --- Descargar datos ---
 @st.cache_data
-def load_data():
-    today = datetime.today().strftime('%Y-%m-%d')
-    btc = yf.download("BTC-USD", start="2021-01-01", end=today, interval="1d", auto_adjust=True)
+def load_data(period_days):
+    today = datetime.today()
+    if period_days is None:
+        start_date = datetime(2021, 1, 1)
+    else:
+        start_date = today - timedelta(days=period_days)
+    btc = yf.download("BTC-USD", start=start_date.strftime('%Y-%m-%d'), end=today.strftime('%Y-%m-%d'), interval="1d", auto_adjust=True)
     
-    # Corregir multi-índice en columnas si existe
     if isinstance(btc.columns, pd.MultiIndex):
         btc.columns = btc.columns.get_level_values(0)
     
     btc['Change'] = btc['Close'].pct_change()
     return btc
 
-btc_data = load_data()
+btc_data = load_data(period_options[period_choice])
 
-# Verificar columnas
-st.write("Columnas disponibles en btc_data:", btc_data.columns.tolist())
+st.write(f"Datos descargados desde {btc_data.index.min().date()} hasta {btc_data.index.max().date()}")
 
-# Quitar filas donde Change es NaN (primer fila suele ser NaN)
 btc_data = btc_data.dropna(subset=['Change'])
 
 # --- Clasificaciones ---
@@ -140,4 +154,3 @@ st.download_button(
     file_name=f"simulaciones_btc_{method.lower()}.csv",
     mime='text/csv'
 )
-
