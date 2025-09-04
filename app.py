@@ -12,7 +12,11 @@ st.set_page_config(page_title="Simulación de Bitcoin", layout="wide")
 st.sidebar.title("🔧 Configuración")
 num_simulations = st.sidebar.slider("Número de simulaciones", 10, 500, 100, step=10)
 days_ahead = st.sidebar.slider("Días a futuro", 30, 730, 365, step=30)
-price_target = st.sidebar.number_input("🎯 Precio objetivo (USD)", value=100000)
+
+# Permite múltiples precios objetivo separados por coma
+price_targets_input = st.sidebar.text_input("🎯 Precio(s) objetivo (USD, separados por coma)", "100000,150000,200000")
+price_targets = [float(p.strip()) for p in price_targets_input.split(",") if p.strip().isdigit()]
+
 method = st.sidebar.selectbox("Método de clasificación", ["Desviación estándar", "Percentiles"])
 
 # --- Descargar datos ---
@@ -20,23 +24,15 @@ method = st.sidebar.selectbox("Método de clasificación", ["Desviación estánd
 def load_data():
     today = datetime.today().strftime('%Y-%m-%d')
     btc = yf.download("BTC-USD", start="2021-01-01", end=today, interval="1d", auto_adjust=True)
-    
-    # Corregir multi-índice en columnas si existe
     if isinstance(btc.columns, pd.MultiIndex):
         btc.columns = btc.columns.get_level_values(0)
-    
     btc['Change'] = btc['Close'].pct_change()
     return btc
 
 btc_data = load_data()
-
-# Verificar columnas
-st.write("Columnas disponibles en btc_data:", btc_data.columns.tolist())
-
-# Quitar filas donde Change es NaN (primer fila suele ser NaN)
 btc_data = btc_data.dropna(subset=['Change'])
 
-# --- Clasificaciones ---
+# --- Clasificación ---
 def classify_std(change, mean, std):
     if change < mean - std:
         return 0
@@ -63,7 +59,7 @@ if method == "Desviación estándar":
 else:
     btc_data['State'] = btc_data['Change'].apply(lambda x: classify_percentile(x, lower_th, upper_th))
 
-# --- Matriz de transición ---
+# --- Matriz de transición y retornos ---
 states = btc_data['State'].astype(int).values
 changes = btc_data['Change'].values
 
@@ -108,36 +104,45 @@ for i in range(num_simulations):
         prices.append(prices[-1] * (1 + R[s]))
     sim_df[f'Sim_{i+1}'] = prices
 
-# --- Estadísticas ---
+# --- Percentiles ---
 p10 = sim_df.quantile(0.10, axis=1)
 p25 = sim_df.quantile(0.25, axis=1)
 p50 = sim_df.quantile(0.50, axis=1)
 p75 = sim_df.quantile(0.75, axis=1)
 p90 = sim_df.quantile(0.90, axis=1)
 
+# --- Probabilidad para cada precio objetivo ---
+st.subheader("🎯 Probabilidades de superar precios objetivo")
 final_prices = sim_df.iloc[-1]
-prob_over = (final_prices > price_target).mean() * 100
+for pt in price_targets:
+    prob = (final_prices > pt).mean() * 100
+    st.write(f"📌 Probabilidad de superar **${pt:,.0f}**: **{prob:.2f}%**")
 
-st.subheader("📈 Simulación de precios")
-st.write(f"🎯 Probabilidad de superar ${price_target:,.0f}: **{prob_over:.2f}%**")
+# --- Gráfico ---
+st.subheader("📉 Simulación de precios futuros de BTC")
 
-fig, ax = plt.subplots(figsize=(12, 6))
+fig, ax = plt.subplots(figsize=(14, 7))
 
-# Área entre P10 y P90 (color suave)
-ax.fill_between(sim_df.index, p10, p90, alpha=0.2, label='P10–P90', color='lightblue')
+# Gráfico con diferentes colores
+ax.plot(p10, color='red', linestyle='--', label='P10')
+ax.plot(p25, color='orange', linestyle='--', label='P25')
+ax.plot(p50, color='blue', linewidth=2, label='Mediana (P50)')
+ax.plot(p75, color='green', linestyle='--', label='P75')
+ax.plot(p90, color='purple', linestyle='--', label='P90')
+ax.fill_between(sim_df.index, p10, p90, alpha=0.1, color='gray', label='Rango P10–P90')
 
-# Líneas con colores diferentes para cada percentil
-ax.plot(p10, label="P10", color='darkblue', linewidth=1.5)
-ax.plot(p25, label="P25", color='green', linestyle='--', linewidth=1.5)
-ax.plot(p50, label="Mediana (P50)", color='red', linewidth=2)
-ax.plot(p75, label="P75", color='orange', linestyle='--', linewidth=1.5)
-ax.plot(p90, label="P90", color='purple', linewidth=1.5)
+# Ejes más legibles
+ax.set_xticks(np.arange(0, days_ahead + 1, 15))
+min_price = sim_df.min().min()
+max_price = sim_df.max().max()
+yticks = np.arange(int(min_price // 10000) * 10000, int(max_price // 10000 + 2) * 10000, 10000)
+ax.set_yticks(yticks)
 
 ax.set_xlabel("Día")
 ax.set_ylabel("Precio (USD)")
-ax.set_title("Simulación de Bitcoin")
-ax.legend()
+ax.set_title("Simulación Monte Carlo para Bitcoin")
 ax.grid(True)
+ax.legend()
 st.pyplot(fig)
 
 # --- Descargar CSV ---
