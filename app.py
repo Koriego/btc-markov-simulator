@@ -124,8 +124,8 @@ st.write(f"🎯 Probabilidad de superar ${price_target:,.0f}: **{prob_over:.2f}%
 fig, ax = plt.subplots(figsize=(12, 6))
 ax.fill_between(sim_df.index, p10, p90, alpha=0.2, label='P10–P90')
 ax.plot(p50, label="Mediana (P50)", color='blue', linewidth=2)
-ax.plot(p25, '--', color='gray', alpha=0.5, label='P25 / P75')
-ax.plot(p75, '--', color='gray', alpha=0.5)
+ax.plot(p25, '--', color='red', alpha=0.5, label='P25 / P75')
+ax.plot(p75, '--', color='yellow', alpha=0.5)
 
 # --- Personalizar ejes ---
 # Eje X: cada 10 días
@@ -154,3 +154,4 @@ st.download_button(
     file_name=f"simulaciones_btc_{method.lower()}.csv",
     mime='text/csv'
 )
+
