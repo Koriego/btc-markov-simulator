@@ -11,21 +11,25 @@ st.set_page_config(page_title="Simulación de Bitcoin", layout="wide")
 # --- Sidebar ---
 st.sidebar.title("🔧 Configuración")
 
-# Selector periodo histórico (fecha inicio)
+# Selección de fecha inicio para descargar datos
 start_dates = {
-    "1 año": "2022-01-01",
-    "3 años": "2020-01-01",
-    "5 años": "2018-01-01",
-    "Desde inicio 2013": "2013-01-01",
+    "2021-01-01": "2021-01-01",
+    "2022-01-01": "2022-01-01",
+    "2023-01-01": "2023-01-01",
+    "2024-01-01": "2024-01-01",
 }
-selected_start = st.sidebar.selectbox("Periodo histórico", list(start_dates.keys()), index=1)
+selected_start = st.sidebar.selectbox("Fecha inicio de datos", list(start_dates.keys()), index=0)
 
-# Selector días a simular (futuro)
-days_options = [10, 30, 120, 360, 730]
-days_ahead = st.sidebar.selectbox("Días a futuro", days_options, index=1)  # default 30
-
+# Número de simulaciones
 num_simulations = st.sidebar.slider("Número de simulaciones", 10, 500, 100, step=10)
+
+# Días futuros para simular
+days_ahead = st.sidebar.selectbox("Días a futuro", [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 360, 730], index=2)
+
+# Precio objetivo
 price_target = st.sidebar.number_input("🎯 Precio objetivo (USD)", value=100000)
+
+# Método de clasificación
 method = st.sidebar.selectbox("Método de clasificación", ["Desviación estándar", "Percentiles"])
 
 # --- Descargar datos ---
@@ -33,11 +37,23 @@ method = st.sidebar.selectbox("Método de clasificación", ["Desviación estánd
 def load_data(start_date):
     today = datetime.today().strftime('%Y-%m-%d')
     btc = yf.download("BTC-USD", start=start_date, end=today, interval="1d", auto_adjust=True)
+    # En caso de multiíndice en columnas, aplanar
+    if isinstance(btc.columns, pd.MultiIndex):
+        btc.columns = btc.columns.get_level_values(-1)
     btc['Change'] = btc['Close'].pct_change()
     return btc
 
 btc_data = load_data(start_dates[selected_start])
-btc_data.dropna(subset=['Change'], inplace=True)
+
+# Mostrar columnas para debug
+st.write("Columnas disponibles:", btc_data.columns.tolist())
+
+# Validar que exista 'Change'
+if 'Change' in btc_data.columns:
+    btc_data.dropna(subset=['Change'], inplace=True)
+else:
+    st.error("La columna 'Change' no existe en los datos descargados.")
+    st.stop()  # Detener ejecución si no existe 'Change'
 
 # --- Clasificaciones ---
 def classify_std(change, mean, std):
