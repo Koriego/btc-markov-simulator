@@ -122,10 +122,17 @@ st.subheader("📈 Simulación de precios")
 st.write(f"🎯 Probabilidad de superar ${price_target:,.0f}: **{prob_over:.2f}%**")
 
 fig, ax = plt.subplots(figsize=(12, 6))
-ax.fill_between(sim_df.index, p10, p90, alpha=0.2, label='P10–P90')
-ax.plot(p50, label="Mediana (P50)", color='blue', linewidth=2)
-ax.plot(p25, '--', color='gray', alpha=0.5, label='P25 / P75')
-ax.plot(p75, '--', color='gray', alpha=0.5)
+
+# Área entre P10 y P90 (color suave)
+ax.fill_between(sim_df.index, p10, p90, alpha=0.2, label='P10–P90', color='lightblue')
+
+# Líneas con colores diferentes para cada percentil
+ax.plot(p10, label="P10", color='darkblue', linewidth=1.5)
+ax.plot(p25, label="P25", color='green', linestyle='--', linewidth=1.5)
+ax.plot(p50, label="Mediana (P50)", color='red', linewidth=2)
+ax.plot(p75, label="P75", color='orange', linestyle='--', linewidth=1.5)
+ax.plot(p90, label="P90", color='purple', linewidth=1.5)
+
 ax.set_xlabel("Día")
 ax.set_ylabel("Precio (USD)")
 ax.set_title("Simulación de Bitcoin")
@@ -140,6 +147,3 @@ st.download_button(
     file_name=f"simulaciones_btc_{method.lower()}.csv",
     mime='text/csv'
 )
-
-
-
