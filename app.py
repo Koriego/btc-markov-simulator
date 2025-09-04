@@ -118,7 +118,8 @@ for pt in price_targets:
     prob = (final_prices > pt).mean() * 100
     st.write(f"📌 Probabilidad de superar **${pt:,.0f}**: **{prob:.2f}%**")
 # --- Explicación de los percentiles y probabilidad ---
-st.markdown("""
+st.markdown(
+    f"""
 ### 🧠 ¿Cómo interpretar estos resultados?
 
 - **P10**: Solo el 10% de las simulaciones dieron precios **más bajos** que este valor. Es un escenario pesimista.
@@ -127,10 +128,17 @@ st.markdown("""
 - **P75**: El 75% de los precios simulados fueron menores. Solo el 25% superaron este valor, por lo tanto es un escenario optimista.
 - **P90**: Solo el 10% de las simulaciones superaron este precio. Es un escenario muy optimista.
 
-### 🎯 Precio objetivo
-Se calculó la **probabilidad de que el precio de Bitcoin supere los ${price_target:,.0f} USD** en los próximos **{days_ahead} días**, usando **{num_simulations} simulaciones de Monte Carlo** basadas en un modelo de **cadenas de Markov**.
+---
 
-> **Probabilidad de superar ${price_target:,.0f}: {prob_over:.2f}%**
+### 🎯 Precio objetivo
+
+Se calculó la **probabilidad de que el precio de Bitcoin supere los ${price_target:,.0f} USD** en los próximos **{days_ahead} días**, usando **{num_simulations} simulaciones** basadas en un modelo de **cadenas de Markov**.
+
+🔮 **Probabilidad de superar ${price_target:,.0f}: `{prob_over:.2f}%`**
+    """,
+    unsafe_allow_html=False
+)
+
 
 Este porcentaje indica cuántas simulaciones terminaron con un precio **superior** al objetivo que ingresaste.
 """)
@@ -185,5 +193,6 @@ st.download_button(
     file_name=f"simulaciones_btc_{method.lower()}.csv",
     mime='text/csv'
 )
+
 
 
