@@ -5,26 +5,26 @@ import yfinance as yf
 from datetime import datetime
 import matplotlib.pyplot as plt
 
-# --- CONFIGURACI脫N ---
-st.set_page_config(page_title="Simulaci贸n de Bitcoin", layout="wide")
+# --- CONFIGURACIÓN ---
+st.set_page_config(page_title="Simulación de Bitcoin", layout="wide")
 
 # --- Sidebar ---
-st.sidebar.title("馃敡 Configuraci贸n")
-num_simulations = st.sidebar.slider("N煤mero de simulaciones", 10, 500, 100, step=10)
-days_ahead = st.sidebar.slider("D铆as a futuro", 30, 730, 365, step=30)
-price_target = st.sidebar.number_input("馃幆 Precio objetivo (USD)", value=100000)
-method = st.sidebar.selectbox("M茅todo de clasificaci贸n", ["Desviaci贸n est谩ndar", "Percentiles"])
+st.sidebar.title("🔧 Configuración")
+num_simulations = st.sidebar.slider("Número de simulaciones", 10, 500, 100, step=10)
+days_ahead = st.sidebar.slider("Días a futuro", 30, 730, 365, step=30)
+price_target = st.sidebar.number_input("🎯 Precio objetivo (USD)", value=100000)
+method = st.sidebar.selectbox("Método de clasificación", ["Desviación estándar", "Percentiles"])
 
 # --- Descargar datos ---
 @st.cache_data
 def load_data():
     today = datetime.today().strftime('%Y-%m-%d')
     btc = yf.download("BTC-USD", start="2021-01-01", end=today, interval="1d", auto_adjust=True)
-    
-    # Corregir multi-铆ndice en columnas si existe
+
+    # Corregir multi-índice en columnas si existe
     if isinstance(btc.columns, pd.MultiIndex):
         btc.columns = btc.columns.get_level_values(0)
-    
+
     btc['Change'] = btc['Close'].pct_change()
     return btc
 
@@ -58,12 +58,12 @@ std_change = btc_data['Change'].std()
 lower_th = np.percentile(btc_data['Change'], 33)
 upper_th = np.percentile(btc_data['Change'], 66)
 
-if method == "Desviaci贸n est谩ndar":
+if method == "Desviación estándar":
     btc_data['State'] = btc_data['Change'].apply(lambda x: classify_std(x, mean_change, std_change))
 else:
     btc_data['State'] = btc_data['Change'].apply(lambda x: classify_percentile(x, lower_th, upper_th))
 
-# --- Matriz de transici贸n ---
+# --- Matriz de transición ---
 states = btc_data['State'].astype(int).values
 changes = btc_data['Change'].values
 
@@ -83,15 +83,15 @@ last_state = states[-1]
 last_price = btc_data['Close'].iloc[-1]
 
 # --- Mostrar matrices ---
-st.subheader("馃搳 Matriz de transici贸n")
-state_labels = ["馃搲 Baja", "鉃?Estable", "馃搱 Sube"]
+st.subheader("📊 Matriz de transición")
+state_labels = ["📉 Baja", "➖ Estable", "📈 Sube"]
 st.dataframe(pd.DataFrame(T, columns=state_labels, index=state_labels).round(3))
 
-st.subheader("馃搱 Promedio de cambio por estado")
+st.subheader("📈 Promedio de cambio por estado")
 for k, v in R.items():
     st.write(f"Estado {k} ({state_labels[k]}): {v:.4f}")
 
-# --- Simulaci贸n ---
+# --- Simulación ---
 def simulate(start_state, steps, matrix, returns):
     states = [start_state]
     for _ in range(steps):
@@ -108,7 +108,7 @@ for i in range(num_simulations):
         prices.append(prices[-1] * (1 + R[s]))
     sim_df[f'Sim_{i+1}'] = prices
 
-# --- Estad铆sticas ---
+# --- Estadísticas ---
 p10 = sim_df.quantile(0.10, axis=1)
 p25 = sim_df.quantile(0.25, axis=1)
 p50 = sim_df.quantile(0.50, axis=1)
@@ -118,28 +118,26 @@ p90 = sim_df.quantile(0.90, axis=1)
 final_prices = sim_df.iloc[-1]
 prob_over = (final_prices > price_target).mean() * 100
 
-st.subheader("馃搱 Simulaci贸n de precios")
-st.write(f"馃幆 Probabilidad de superar ${price_target:,.0f}: **{prob_over:.2f}%**")
+st.subheader("📈 Simulación de precios")
+st.write(f"🎯 Probabilidad de superar ${price_target:,.0f}: **{prob_over:.2f}%**")
 
 fig, ax = plt.subplots(figsize=(12, 6))
-ax.fill_between(sim_df.index, p10, p90, alpha=0.2, label='P10鈥揚90')
+ax.fill_between(sim_df.index, p10, p90, alpha=0.2, label='P10–P90')
 ax.plot(p50, label="Mediana (P50)", color='blue', linewidth=2)
 ax.plot(p25, '--', color='gray', alpha=0.5, label='P25 / P75')
 ax.plot(p75, '--', color='gray', alpha=0.5)
-ax.set_xlabel("D铆a")
+ax.set_xlabel("Día")
 ax.set_ylabel("Precio (USD)")
-ax.set_title("Simulaci贸n de Bitcoin")
+ax.set_title("Simulación de Bitcoin")
 ax.legend()
 ax.grid(True)
 st.pyplot(fig)
 
 # --- Descargar CSV ---
 st.download_button(
-    label="猬囷笍 Descargar resultados CSV",
+    label="⬇️ Descargar resultados CSV",
     data=sim_df.to_csv().encode('utf-8'),
     file_name=f"simulaciones_btc_{method.lower()}.csv",
     mime='text/csv'
 )
-
-
 
