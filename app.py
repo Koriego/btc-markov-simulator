@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 from datetime import datetime
-import plotly.graph_objects as go
+import matplotlib.pyplot as plt
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Simulación de Bitcoin", layout="wide")
@@ -20,15 +20,21 @@ method = st.sidebar.selectbox("Método de clasificación", ["Desviación estánd
 def load_data():
     today = datetime.today().strftime('%Y-%m-%d')
     btc = yf.download("BTC-USD", start="2021-01-01", end=today, interval="1d", auto_adjust=True)
-
+    
     # Corregir multi-índice en columnas si existe
     if isinstance(btc.columns, pd.MultiIndex):
         btc.columns = btc.columns.get_level_values(0)
-
+    
     btc['Change'] = btc['Close'].pct_change()
-    return btc.dropna(subset=['Change'])
+    return btc
 
 btc_data = load_data()
+
+# Verificar columnas
+st.write("Columnas disponibles en btc_data:", btc_data.columns.tolist())
+
+# Quitar filas donde Change es NaN (primer fila suele ser NaN)
+btc_data = btc_data.dropna(subset=['Change'])
 
 # --- Clasificaciones ---
 def classify_std(change, mean, std):
@@ -65,10 +71,7 @@ def transition_matrix(states):
     trans = np.zeros((3, 3))
     for (curr, nxt) in zip(states[:-1], states[1:]):
         trans[curr, nxt] += 1
-    # Evitar división por cero
-    row_sums = trans.sum(axis=1, keepdims=True)
-    row_sums[row_sums == 0] = 1
-    return trans / row_sums
+    return trans / trans.sum(axis=1, keepdims=True)
 
 def avg_return_by_state(states, changes):
     df = pd.DataFrame({'State': states, 'Change': changes})
@@ -102,7 +105,7 @@ for i in range(num_simulations):
     s_states = simulate(last_state, days_ahead, T, R)
     prices = [last_price]
     for s in s_states[1:]:
-        prices.append(prices[-1] * (1 + R.get(s, 0)))
+        prices.append(prices[-1] * (1 + R[s]))
     sim_df[f'Sim_{i+1}'] = prices
 
 # --- Estadísticas ---
@@ -118,71 +121,17 @@ prob_over = (final_prices > price_target).mean() * 100
 st.subheader("📈 Simulación de precios")
 st.write(f"🎯 Probabilidad de superar ${price_target:,.0f}: **{prob_over:.2f}%**")
 
-# --- Gráfico interactivo con Plotly ---
-fig = go.Figure()
-
-# Área entre P10 y P90
-fig.add_trace(go.Scatter(
-    x=sim_df.index, y=p90,
-    mode='lines',
-    line=dict(width=0),
-    showlegend=False,
-    hoverinfo='skip'
-))
-fig.add_trace(go.Scatter(
-    x=sim_df.index, y=p10,
-    mode='lines',
-    fill='tonexty',
-    fillcolor='rgba(173,216,230,0.2)',  # azul claro semi-transparente
-    line=dict(width=0),
-    name='P10–P90',
-    hoverinfo='skip'
-))
-
-# Mediana P50
-fig.add_trace(go.Scatter(
-    x=sim_df.index, y=p50,
-    mode='lines',
-    line=dict(color='blue', width=3),
-    name='Mediana (P50)',
-    hovertemplate='Día %{x}<br>Precio: $%{y:.2f}<extra></extra>'
-))
-
-# P25 y P75
-fig.add_trace(go.Scatter(
-    x=sim_df.index, y=p25,
-    mode='lines',
-    line=dict(color='gray', width=1, dash='dash'),
-    name='P25',
-    hovertemplate='Día %{x}<br>Precio: $%{y:.2f}<extra></extra>'
-))
-fig.add_trace(go.Scatter(
-    x=sim_df.index, y=p75,
-    mode='lines',
-    line=dict(color='gray', width=1, dash='dash'),
-    name='P75',
-    hovertemplate='Día %{x}<br>Precio: $%{y:.2f}<extra></extra>'
-))
-
-# Configurar ejes
-fig.update_layout(
-    width=1000,
-    height=600,
-    title="Simulación de Bitcoin",
-    xaxis_title="Día",
-    yaxis_title="Precio (USD)",
-    hovermode="x unified",
-    legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
-)
-
-# Ejes con ticks personalizados
-fig.update_xaxes(tickmode='array', tickvals=np.arange(0, days_ahead+1, 15))
-min_price = sim_df.min().min()
-max_price = sim_df.max().max()
-yticks = np.arange(int(min_price // 10000)*10000, int(max_price // 10000 + 2)*10000, 10000)
-fig.update_yaxes(tickmode='array', tickvals=yticks)
-
-st.plotly_chart(fig, use_container_width=True)
+fig, ax = plt.subplots(figsize=(12, 6))
+ax.fill_between(sim_df.index, p10, p90, alpha=0.2, label='P10–P90')
+ax.plot(p50, label="Mediana (P50)", color='blue', linewidth=2)
+ax.plot(p25, '--', color='gray', alpha=0.5, label='P25 / P75')
+ax.plot(p75, '--', color='gray', alpha=0.5)
+ax.set_xlabel("Día")
+ax.set_ylabel("Precio (USD)")
+ax.set_title("Simulación de Bitcoin")
+ax.legend()
+ax.grid(True)
+st.pyplot(fig)
 
 # --- Descargar CSV ---
 st.download_button(
@@ -191,3 +140,6 @@ st.download_button(
     file_name=f"simulaciones_btc_{method.lower()}.csv",
     mime='text/csv'
 )
+
+
+
