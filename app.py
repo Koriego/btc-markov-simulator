@@ -145,6 +145,21 @@ ax.grid(True)
 ax.legend()
 st.pyplot(fig)
 
+# --- Tabla de precios simulados al último día ---
+st.subheader("📊 Precio simulado al final del período")
+
+last_day = {
+    'P10': p10.iloc[-1],
+    'P25': p25.iloc[-1],
+    'P50': p50.iloc[-1],
+    'P75': p75.iloc[-1],
+    'P90': p90.iloc[-1],
+}
+
+last_day_df = pd.DataFrame.from_dict(last_day, orient='index', columns=['Precio simulado (USD)'])
+last_day_df.index.name = "Percentil"
+st.dataframe(last_day_df.style.format("${:,.0f}"))
+
 # --- Descargar CSV ---
 st.download_button(
     label="⬇️ Descargar resultados CSV",
@@ -152,3 +167,4 @@ st.download_button(
     file_name=f"simulaciones_btc_{method.lower()}.csv",
     mime='text/csv'
 )
+
