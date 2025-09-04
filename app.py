@@ -20,21 +20,15 @@ method = st.sidebar.selectbox("Método de clasificación", ["Desviación estánd
 def load_data():
     today = datetime.today().strftime('%Y-%m-%d')
     btc = yf.download("BTC-USD", start="2021-01-01", end=today, interval="1d", auto_adjust=True)
-    
+
     # Corregir multi-índice en columnas si existe
     if isinstance(btc.columns, pd.MultiIndex):
         btc.columns = btc.columns.get_level_values(0)
 
     btc['Change'] = btc['Close'].pct_change()
-    btc.dropna(subset=['Change'], inplace=True)
-    return btc
+    return btc.dropna(subset=['Change'])
 
 btc_data = load_data()
-
-# Validación: si no hay datos suficientes, mostrar error y detener app
-if btc_data.empty or btc_data['Change'].empty:
-    st.error("No hay suficientes datos para realizar la simulación. Verifica la conexión y la fuente de datos.")
-    st.stop()
 
 # --- Clasificaciones ---
 def classify_std(change, mean, std):
@@ -72,9 +66,9 @@ def transition_matrix(states):
     for (curr, nxt) in zip(states[:-1], states[1:]):
         trans[curr, nxt] += 1
     # Evitar división por cero
-    with np.errstate(divide='ignore', invalid='ignore'):
-        trans = np.nan_to_num(trans / trans.sum(axis=1, keepdims=True))
-    return trans
+    row_sums = trans.sum(axis=1, keepdims=True)
+    row_sums[row_sums == 0] = 1
+    return trans / row_sums
 
 def avg_return_by_state(states, changes):
     df = pd.DataFrame({'State': states, 'Change': changes})
@@ -108,7 +102,7 @@ for i in range(num_simulations):
     s_states = simulate(last_state, days_ahead, T, R)
     prices = [last_price]
     for s in s_states[1:]:
-        prices.append(prices[-1] * (1 + R[s]))
+        prices.append(prices[-1] * (1 + R.get(s, 0)))
     sim_df[f'Sim_{i+1}'] = prices
 
 # --- Estadísticas ---
@@ -124,71 +118,69 @@ prob_over = (final_prices > price_target).mean() * 100
 st.subheader("📈 Simulación de precios")
 st.write(f"🎯 Probabilidad de superar ${price_target:,.0f}: **{prob_over:.2f}%**")
 
-# --- Gráfica interactiva con Plotly ---
+# --- Gráfico interactivo con Plotly ---
 fig = go.Figure()
 
-# Rango de días (índice)
-x = sim_df.index
-
-# Añadir área entre p10 y p90
+# Área entre P10 y P90
 fig.add_trace(go.Scatter(
-    x=x.tolist() + x[::-1].tolist(),
-    y=p90.tolist() + p10[::-1].tolist(),
-    fill='toself',
-    fillcolor='rgba(0,100,80,0.2)',
-    line=dict(color='rgba(255,255,255,0)'),
-    hoverinfo="skip",
-    showlegend=True,
+    x=sim_df.index, y=p90,
+    mode='lines',
+    line=dict(width=0),
+    showlegend=False,
+    hoverinfo='skip'
+))
+fig.add_trace(go.Scatter(
+    x=sim_df.index, y=p10,
+    mode='lines',
+    fill='tonexty',
+    fillcolor='rgba(173,216,230,0.2)',  # azul claro semi-transparente
+    line=dict(width=0),
     name='P10–P90',
+    hoverinfo='skip'
 ))
 
-# Añadir líneas p25, p50, p75
+# Mediana P50
 fig.add_trace(go.Scatter(
-    x=x, y=p50,
+    x=sim_df.index, y=p50,
     mode='lines',
-    line=dict(color='blue', width=2),
-    name='Mediana (P50)'
+    line=dict(color='blue', width=3),
+    name='Mediana (P50)',
+    hovertemplate='Día %{x}<br>Precio: $%{y:.2f}<extra></extra>'
 ))
 
+# P25 y P75
 fig.add_trace(go.Scatter(
-    x=x, y=p25,
-    mode='lines',
-    line=dict(color='gray', width=1, dash='dash'),
-    name='P25'
-))
-
-fig.add_trace(go.Scatter(
-    x=x, y=p75,
+    x=sim_df.index, y=p25,
     mode='lines',
     line=dict(color='gray', width=1, dash='dash'),
-    name='P75'
+    name='P25',
+    hovertemplate='Día %{x}<br>Precio: $%{y:.2f}<extra></extra>'
+))
+fig.add_trace(go.Scatter(
+    x=sim_df.index, y=p75,
+    mode='lines',
+    line=dict(color='gray', width=1, dash='dash'),
+    name='P75',
+    hovertemplate='Día %{x}<br>Precio: $%{y:.2f}<extra></extra>'
 ))
 
-# Configurar ticks eje X cada 15 días
-fig.update_xaxes(
-    dtick=15,
-    title_text='Día',
-    showgrid=True
-)
-
-# Configurar ticks eje Y cada 10000 USD
-min_price = sim_df.min().min()
-max_price = sim_df.max().max()
-start_ytick = int(np.floor(min_price / 10000) * 10000)
-end_ytick = int(np.ceil(max_price / 10000) * 10000)
-fig.update_yaxes(
-    dtick=10000,
-    range=[start_ytick, end_ytick],
-    title_text='Precio (USD)',
-    showgrid=True,
-    tickformat=',d'
-)
-
+# Configurar ejes
 fig.update_layout(
+    width=1000,
+    height=600,
     title="Simulación de Bitcoin",
+    xaxis_title="Día",
+    yaxis_title="Precio (USD)",
     hovermode="x unified",
     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
 )
+
+# Ejes con ticks personalizados
+fig.update_xaxes(tickmode='array', tickvals=np.arange(0, days_ahead+1, 15))
+min_price = sim_df.min().min()
+max_price = sim_df.max().max()
+yticks = np.arange(int(min_price // 10000)*10000, int(max_price // 10000 + 2)*10000, 10000)
+fig.update_yaxes(tickmode='array', tickvals=yticks)
 
 st.plotly_chart(fig, use_container_width=True)
 
