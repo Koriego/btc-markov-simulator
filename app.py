@@ -124,14 +124,28 @@ st.write(f"🎯 Probabilidad de superar ${price_target:,.0f}: **{prob_over:.2f}%
 fig, ax = plt.subplots(figsize=(12, 6))
 ax.fill_between(sim_df.index, p10, p90, alpha=0.2, label='P10–P90')
 ax.plot(p50, label="Mediana (P50)", color='blue', linewidth=2)
-ax.plot(p25, '--', color='red', alpha=0.5, label='P25 / P75')
+ax.plot(p25, '--', color='gray', alpha=0.5, label='P25 / P75')
 ax.plot(p75, '--', color='gray', alpha=0.5)
+
+# --- Personalizar ejes ---
+# Eje X: cada 10 días
+xticks = np.arange(0, days_ahead + 1, 10)
+ax.set_xticks(xticks)
+
+# Eje Y: cada 5000 USD
+min_price = sim_df.min().min()
+max_price = sim_df.max().max()
+yticks = np.arange(int(min_price // 5000) * 5000, int(max_price // 5000 + 2) * 5000, 5000)
+ax.set_yticks(yticks)
+
+# Etiquetas y leyenda
 ax.set_xlabel("Día")
 ax.set_ylabel("Precio (USD)")
 ax.set_title("Simulación de Bitcoin")
 ax.legend()
 ax.grid(True)
 st.pyplot(fig)
+
 
 # --- Descargar CSV ---
 st.download_button(
@@ -140,6 +154,3 @@ st.download_button(
     file_name=f"simulaciones_btc_{method.lower()}.csv",
     mime='text/csv'
 )
-
-
-
