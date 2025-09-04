@@ -10,8 +10,8 @@ st.set_page_config(page_title="Simulación de Bitcoin", layout="wide")
 
 # --- Sidebar ---
 st.sidebar.title("🔧 Configuración")
-num_simulations = st.sidebar.slider("Número de simulaciones", 10, 500, 100, step=10)
-days_ahead = st.sidebar.slider("Días a futuro", 30, 730, 365, step=30)
+num_simulations = st.sidebar.slider("Número de simulaciones", 5, 10, 15, 20, 500, 100, step=5)
+days_ahead = st.sidebar.slider("Días a futuro",10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 180, 730, 365, step=10)
 price_target = st.sidebar.number_input("🎯 Precio objetivo (USD)", value=100000)
 method = st.sidebar.selectbox("Método de clasificación", ["Desviación estándar", "Percentiles"])
 
@@ -124,7 +124,7 @@ st.write(f"🎯 Probabilidad de superar ${price_target:,.0f}: **{prob_over:.2f}%
 fig, ax = plt.subplots(figsize=(12, 6))
 ax.fill_between(sim_df.index, p10, p90, alpha=0.2, label='P10–P90')
 ax.plot(p50, label="Mediana (P50)", color='blue', linewidth=2)
-ax.plot(p25, '--', color='gray', alpha=0.5, label='P25 / P75')
+ax.plot(p25, '--', color='red', alpha=0.5, label='P25 / P75')
 ax.plot(p75, '--', color='gray', alpha=0.5)
 ax.set_xlabel("Día")
 ax.set_ylabel("Precio (USD)")
@@ -138,6 +138,3 @@ st.download_button(
     label="⬇️ Descargar resultados CSV",
     data=sim_df.to_csv().encode('utf-8'),
     file_name=f"simulaciones_btc_{method.lower()}.csv",
-    mime='text/csv'
-)
-
