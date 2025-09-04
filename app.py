@@ -20,15 +20,20 @@ method = st.sidebar.selectbox("Método de clasificación", ["Desviación estánd
 def load_data():
     today = datetime.today().strftime('%Y-%m-%d')
     btc = yf.download("BTC-USD", start="2021-01-01", end=today, interval="1d", auto_adjust=True)
+    
+    # Corregir multi-índice en columnas si existe
+    if isinstance(btc.columns, pd.MultiIndex):
+        btc.columns = btc.columns.get_level_values(0)
+    
     btc['Change'] = btc['Close'].pct_change()
     return btc
 
 btc_data = load_data()
 
-# Debug: mostrar columnas para confirmar que 'Change' existe
-st.write("Columnas en btc_data:", btc_data.columns.tolist())
+# Verificar columnas
+st.write("Columnas disponibles en btc_data:", btc_data.columns.tolist())
 
-# Eliminar filas con valores NaN en 'Change' sin usar inplace
+# Quitar filas donde Change es NaN (primer fila suele ser NaN)
 btc_data = btc_data.dropna(subset=['Change'])
 
 # --- Clasificaciones ---
@@ -135,3 +140,4 @@ st.download_button(
     file_name=f"simulaciones_btc_{method.lower()}.csv",
     mime='text/csv'
 )
+
