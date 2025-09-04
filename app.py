@@ -137,11 +137,9 @@ Se calculó la **probabilidad de que el precio de Bitcoin supere los ${price_tar
 🔮 **Probabilidad de superar ${price_target:,.0f}: `{prob_over:.2f}%`**
     """,
     unsafe_allow_html=False
+
+    Este porcentaje indica cuántas simulaciones terminaron con un precio **superior** al objetivo que ingresaste.
 )
-
-
-Este porcentaje indica cuántas simulaciones terminaron con un precio **superior** al objetivo que ingresaste.
-""")
 
 
 # --- Gráfico ---
@@ -193,6 +191,7 @@ st.download_button(
     file_name=f"simulaciones_btc_{method.lower()}.csv",
     mime='text/csv'
 )
+
 
 
 
