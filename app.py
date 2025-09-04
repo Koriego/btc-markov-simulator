@@ -37,23 +37,30 @@ method = st.sidebar.selectbox("Método de clasificación", ["Desviación estánd
 def load_data(start_date):
     today = datetime.today().strftime('%Y-%m-%d')
     btc = yf.download("BTC-USD", start=start_date, end=today, interval="1d", auto_adjust=True)
+    
     # Aplanar multiíndice si existe
     if isinstance(btc.columns, pd.MultiIndex):
         btc.columns = btc.columns.get_level_values(-1)
+    
+    # Validar que el DataFrame no esté vacío
+    if btc.empty:
+        st.error("No se descargaron datos. Verifica la conexión o el ticker.")
+        st.stop()
+    # Validar que la columna 'Close' exista
+    if 'Close' not in btc.columns:
+        st.error("La columna 'Close' no está en los datos descargados.")
+        st.stop()
+
     btc['Change'] = btc['Close'].pct_change()
     return btc
 
 btc_data = load_data(start_dates[selected_start])
 
-# Mostrar columnas para debug (puedes comentar esta línea si no quieres verla)
-st.write("Columnas disponibles:", btc_data.columns.tolist())
+# Mostrar info para debug (puedes comentar esta línea después)
+st.write(f"Datos descargados desde {start_dates[selected_start]} hasta hoy ({datetime.today().strftime('%Y-%m-%d')}):")
+st.write(btc_data.head())
 
-# Validar que exista 'Change'
-if 'Change' in btc_data.columns:
-    btc_data.dropna(subset=['Change'], inplace=True)
-else:
-    st.error("La columna 'Change' no existe en los datos descargados.")
-    st.stop()  # Detener ejecución si no existe 'Change'
+btc_data.dropna(subset=['Change'], inplace=True)
 
 # --- Clasificaciones ---
 def classify_std(change, mean, std):
@@ -90,11 +97,14 @@ def transition_matrix(states):
     trans = np.zeros((3, 3))
     for (curr, nxt) in zip(states[:-1], states[1:]):
         trans[curr, nxt] += 1
-    # Evitar división por cero
-    with np.errstate(divide='ignore', invalid='ignore'):
-        trans_prob = np.divide(trans, trans.sum(axis=1, keepdims=True))
-        trans_prob = np.nan_to_num(trans_prob)
-    return trans_prob
+    # Evitar división por cero si una fila suma 0
+    with np.errstate(invalid='ignore'):
+        trans = np.divide(trans, trans.sum(axis=1, keepdims=True), where=trans.sum(axis=1, keepdims=True)!=0)
+    # Para filas con suma 0, asignar distribución uniforme
+    for i in range(3):
+        if np.isnan(trans[i]).all():
+            trans[i] = np.array([1/3, 1/3, 1/3])
+    return trans
 
 def avg_return_by_state(states, changes):
     df = pd.DataFrame({'State': states, 'Change': changes})
