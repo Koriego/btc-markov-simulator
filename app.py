@@ -134,9 +134,8 @@ st.markdown(
 
 Se calculó la **probabilidad de que el precio de Bitcoin supere los ${price_target:,.0f} USD** en los próximos **{days_ahead} días**, usando **{num_simulations} simulaciones** basadas en un modelo de **cadenas de Markov**.
 
-🔮 **Probabilidad de superar ${price_target:,.0f}: `{prob_over:.2f}%`**
-    """,
-    unsafe_allow_html=False
+🔮 st.markdown(f"🎯 Probabilidad de superar ${price_target:,.0f}: **{prob_over:.2f}%**", unsafe_allow_html=True)
+
 
     Este porcentaje indica cuántas simulaciones terminaron con un precio **superior** al objetivo que ingresaste.
 )
@@ -191,6 +190,7 @@ st.download_button(
     file_name=f"simulaciones_btc_{method.lower()}.csv",
     mime='text/csv'
 )
+
 
 
 
