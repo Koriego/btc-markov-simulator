@@ -20,18 +20,21 @@ method = st.sidebar.selectbox("Método de clasificación", ["Desviación estánd
 def load_data():
     today = datetime.today().strftime('%Y-%m-%d')
     btc = yf.download("BTC-USD", start="2021-01-01", end=today, interval="1d", auto_adjust=True)
-
+    
+    # Corregir multi-índice en columnas si existe
     if isinstance(btc.columns, pd.MultiIndex):
         btc.columns = btc.columns.get_level_values(0)
 
     btc['Change'] = btc['Close'].pct_change()
+    btc.dropna(subset=['Change'], inplace=True)
     return btc
 
 btc_data = load_data()
 
-st.write("Columnas disponibles en btc_data:", btc_data.columns.tolist())
-
-btc_data = btc_data.dropna(subset=['Change'])
+# Validación: si no hay datos suficientes, mostrar error y detener app
+if btc_data.empty or btc_data['Change'].empty:
+    st.error("No hay suficientes datos para realizar la simulación. Verifica la conexión y la fuente de datos.")
+    st.stop()
 
 # --- Clasificaciones ---
 def classify_std(change, mean, std):
@@ -68,7 +71,10 @@ def transition_matrix(states):
     trans = np.zeros((3, 3))
     for (curr, nxt) in zip(states[:-1], states[1:]):
         trans[curr, nxt] += 1
-    return trans / trans.sum(axis=1, keepdims=True)
+    # Evitar división por cero
+    with np.errstate(divide='ignore', invalid='ignore'):
+        trans = np.nan_to_num(trans / trans.sum(axis=1, keepdims=True))
+    return trans
 
 def avg_return_by_state(states, changes):
     df = pd.DataFrame({'State': states, 'Change': changes})
@@ -121,42 +127,69 @@ st.write(f"🎯 Probabilidad de superar ${price_target:,.0f}: **{prob_over:.2f}%
 # --- Gráfica interactiva con Plotly ---
 fig = go.Figure()
 
-# P10–P90 banda
-fig.add_trace(go.Scatter(
-    x=sim_df.index, y=p10, mode='lines', line=dict(width=0),
-    name='P10', showlegend=False
-))
-fig.add_trace(go.Scatter(
-    x=sim_df.index, y=p90, mode='lines', fill='tonexty',
-    fillcolor='rgba(0, 100, 80, 0.2)', line=dict(width=0),
-    name='P90', showlegend=True
-))
+# Rango de días (índice)
+x = sim_df.index
 
-# Líneas de percentiles
-fig.add_trace(go.Scatter(x=sim_df.index, y=p50, mode='lines', name='Mediana (P50)', line=dict(color='blue')))
-fig.add_trace(go.Scatter(x=sim_df.index, y=p25, mode='lines', name='P25', line=dict(dash='dash', color='gray')))
-fig.add_trace(go.Scatter(x=sim_df.index, y=p75, mode='lines', name='P75', line=dict(dash='dash', color='gray')))
-
-# Línea horizontal precio objetivo
+# Añadir área entre p10 y p90
 fig.add_trace(go.Scatter(
-    x=[0, days_ahead], y=[price_target, price_target],
-    mode='lines', name=f'🎯 Precio objetivo (${price_target:,.0f})',
-    line=dict(color='red', dash='dot')
+    x=x.tolist() + x[::-1].tolist(),
+    y=p90.tolist() + p10[::-1].tolist(),
+    fill='toself',
+    fillcolor='rgba(0,100,80,0.2)',
+    line=dict(color='rgba(255,255,255,0)'),
+    hoverinfo="skip",
+    showlegend=True,
+    name='P10–P90',
 ))
 
-# Configurar layout
-fig.update_layout(
-    title="Simulación de Bitcoin",
-    xaxis=dict(title="Día", tickmode="linear", dtick=15),
-    yaxis=dict(title="Precio (USD)", tickmode="linear", dtick=10000),
-    hovermode="x unified",
-    legend=dict(x=0, y=1),
-    template="plotly_white",
-    height=600,
-    width=1000
+# Añadir líneas p25, p50, p75
+fig.add_trace(go.Scatter(
+    x=x, y=p50,
+    mode='lines',
+    line=dict(color='blue', width=2),
+    name='Mediana (P50)'
+))
+
+fig.add_trace(go.Scatter(
+    x=x, y=p25,
+    mode='lines',
+    line=dict(color='gray', width=1, dash='dash'),
+    name='P25'
+))
+
+fig.add_trace(go.Scatter(
+    x=x, y=p75,
+    mode='lines',
+    line=dict(color='gray', width=1, dash='dash'),
+    name='P75'
+))
+
+# Configurar ticks eje X cada 15 días
+fig.update_xaxes(
+    dtick=15,
+    title_text='Día',
+    showgrid=True
 )
 
-# Mostrar la gráfica
+# Configurar ticks eje Y cada 10000 USD
+min_price = sim_df.min().min()
+max_price = sim_df.max().max()
+start_ytick = int(np.floor(min_price / 10000) * 10000)
+end_ytick = int(np.ceil(max_price / 10000) * 10000)
+fig.update_yaxes(
+    dtick=10000,
+    range=[start_ytick, end_ytick],
+    title_text='Precio (USD)',
+    showgrid=True,
+    tickformat=',d'
+)
+
+fig.update_layout(
+    title="Simulación de Bitcoin",
+    hovermode="x unified",
+    legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+)
+
 st.plotly_chart(fig, use_container_width=True)
 
 # --- Descargar CSV ---
@@ -166,4 +199,3 @@ st.download_button(
     file_name=f"simulaciones_btc_{method.lower()}.csv",
     mime='text/csv'
 )
-
