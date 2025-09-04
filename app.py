@@ -19,16 +19,17 @@ method = st.sidebar.selectbox("Método de clasificación", ["Desviación estánd
 @st.cache_data
 def load_data():
     today = datetime.today().strftime('%Y-%m-%d')
-    # Descargar con auto_adjust=True para precios ajustados
     btc = yf.download("BTC-USD", start="2021-01-01", end=today, interval="1d", auto_adjust=True)
-    # Calcular cambio diario porcentual
     btc['Change'] = btc['Close'].pct_change()
     return btc
 
 btc_data = load_data()
 
-# Asegurarse que la columna 'Change' tiene datos (el primer día será NaN)
-btc_data.dropna(subset=['Change'], inplace=True)
+# Debug: mostrar columnas para confirmar que 'Change' existe
+st.write("Columnas en btc_data:", btc_data.columns.tolist())
+
+# Eliminar filas con valores NaN en 'Change' sin usar inplace
+btc_data = btc_data.dropna(subset=['Change'])
 
 # --- Clasificaciones ---
 def classify_std(change, mean, std):
@@ -65,11 +66,7 @@ def transition_matrix(states):
     trans = np.zeros((3, 3))
     for (curr, nxt) in zip(states[:-1], states[1:]):
         trans[curr, nxt] += 1
-    # Evitar división por cero (si hay fila sin transiciones)
-    with np.errstate(divide='ignore', invalid='ignore'):
-        mat = trans / trans.sum(axis=1, keepdims=True)
-        mat = np.nan_to_num(mat)
-    return mat
+    return trans / trans.sum(axis=1, keepdims=True)
 
 def avg_return_by_state(states, changes):
     df = pd.DataFrame({'State': states, 'Change': changes})
@@ -77,7 +74,6 @@ def avg_return_by_state(states, changes):
 
 T = transition_matrix(states)
 R = avg_return_by_state(states, changes)
-
 last_state = states[-1]
 last_price = btc_data['Close'].iloc[-1]
 
@@ -104,7 +100,6 @@ for i in range(num_simulations):
     s_states = simulate(last_state, days_ahead, T, R)
     prices = [last_price]
     for s in s_states[1:]:
-        # Usar retorno promedio por estado para el siguiente precio
         prices.append(prices[-1] * (1 + R[s]))
     sim_df[f'Sim_{i+1}'] = prices
 
@@ -140,4 +135,3 @@ st.download_button(
     file_name=f"simulaciones_btc_{method.lower()}.csv",
     mime='text/csv'
 )
-
