@@ -13,9 +13,12 @@ st.sidebar.title("🔧 Configuración")
 num_simulations = st.sidebar.slider("Número de simulaciones", 10, 500, 100, step=10)
 days_ahead = st.sidebar.slider("Días a futuro", 30, 730, 365, step=30)
 
-# Permite múltiples precios objetivo separados por coma
+# Permite múltiples precios objetivo separados por coma (acepta decimales)
 price_targets_input = st.sidebar.text_input("🎯 Precio(s) objetivo (USD, separados por coma)", "100000,150000,200000")
-price_targets = [float(p.strip()) for p in price_targets_input.split(",") if p.strip().isdigit()]
+try:
+    price_targets = [float(p.strip()) for p in price_targets_input.split(",") if p.strip()]
+except:
+    price_targets = [100000, 150000, 200000]
 
 method = st.sidebar.selectbox("Método de clasificación", ["Desviación estándar", "Percentiles"])
 
@@ -117,9 +120,10 @@ final_prices = sim_df.iloc[-1]
 for pt in price_targets:
     prob = (final_prices > pt).mean() * 100
     st.write(f"📌 Probabilidad de superar **${pt:,.0f}**: **{prob:.2f}%**")
+
 # --- Explicación de los percentiles y probabilidad ---
 st.markdown(
-    f"""
+    """
 ### 🧠 ¿Cómo interpretar estos resultados?
 
 - **P10**: Solo el 10% de las simulaciones dieron precios **más bajos** que este valor. Es un escenario pesimista.
@@ -132,21 +136,17 @@ st.markdown(
 
 ### 🎯 Precio objetivo
 
-Se calculó la **probabilidad de que el precio de Bitcoin supere los ${price_target:,.0f} USD** en los próximos **{days_ahead} días**, usando **{num_simulations} simulaciones** basadas en un modelo de **cadenas de Markov**.
+Se calculó la **probabilidad de que el precio de Bitcoin supere cada precio objetivo ingresado** en los próximos **días seleccionados**, usando **simulaciones basadas en un modelo de cadenas de Markov**.
 
-🔮 st.markdown(f"🎯 Probabilidad de superar ${price_target:,.0f}: **{prob_over:.2f}%**", unsafe_allow_html=True)
-
-
-    Este porcentaje indica cuántas simulaciones terminaron con un precio **superior** al objetivo que ingresaste.
+Este porcentaje indica cuántas simulaciones terminaron con un precio **superior** al objetivo que ingresaste.
+"""
 )
-
 
 # --- Gráfico ---
 st.subheader("📉 Simulación de precios futuros de BTC")
 
 fig, ax = plt.subplots(figsize=(14, 7))
 
-# Gráfico con diferentes colores
 ax.plot(p10, color='red', linestyle='--', label='P10')
 ax.plot(p25, color='orange', linestyle='--', label='P25')
 ax.plot(p50, color='blue', linewidth=2, label='Mediana (P50)')
@@ -154,7 +154,6 @@ ax.plot(p75, color='green', linestyle='--', label='P75')
 ax.plot(p90, color='purple', linestyle='--', label='P90')
 ax.fill_between(sim_df.index, p10, p90, alpha=0.1, color='gray', label='Rango P10–P90')
 
-# Ejes más legibles
 ax.set_xticks(np.arange(0, days_ahead + 1, 15))
 min_price = sim_df.min().min()
 max_price = sim_df.max().max()
@@ -190,8 +189,3 @@ st.download_button(
     file_name=f"simulaciones_btc_{method.lower()}.csv",
     mime='text/csv'
 )
-
-
-
-
-
