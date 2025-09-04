@@ -1,4 +1,4 @@
-@st.cache_data
+@st.cache
 def load_data(start_date):
     today = datetime.today().strftime('%Y-%m-%d')
     btc = yf.download("BTC-USD", start=start_date, end=today, interval="1d", auto_adjust=True)
@@ -8,7 +8,7 @@ def load_data(start_date):
         st.error("No se pudieron descargar datos. Intenta con otra fecha de inicio o revisa conexión.")
         st.stop()
 
-    # Si las columnas tienen MultiIndex, aplanar (obtener último nivel)
+    # Aplanar MultiIndex en columnas si es necesario
     if isinstance(btc.columns, pd.MultiIndex):
         btc.columns = btc.columns.get_level_values(-1)
 
@@ -19,5 +19,3 @@ def load_data(start_date):
 
     btc['Change'] = btc['Close'].pct_change()
     return btc
-
-
